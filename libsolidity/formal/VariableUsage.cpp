@@ -25,17 +25,29 @@ using namespace std;
 using namespace dev;
 using namespace dev::solidity;
 
+set<VariableDeclaration const*> VariableUsage::touchedVariables(ASTNode const& _node, vector<CallableDeclaration const*> const& _outerCallstack)
+{
+	m_touchedVariables.clear();
+	m_callStack.clear();
+	m_callStack += _outerCallstack;
+	m_lastCall = m_callStack.back();
+	_node.accept(*this);
+	return m_touchedVariables;
+}
+
 void VariableUsage::endVisit(Identifier const& _identifier)
 {
-	Declaration const* declaration = _identifier.annotation().referencedDeclaration;
-	solAssert(declaration, "");
-	if (VariableDeclaration const* varDecl = dynamic_cast<VariableDeclaration const*>(declaration))
-		if (_identifier.annotation().lValueRequested)
-		{
-			solAssert(m_lastCall, "");
-			if (!varDecl->isLocalVariable() || varDecl->functionOrModifierDefinition() == m_lastCall)
-				m_touchedVariables.insert(varDecl);
-		}
+	checkIdentifier(_identifier);
+}
+
+void VariableUsage::endVisit(MemberAccess const& _memberAccess)
+{
+	checkAccess(_memberAccess);
+}
+
+void VariableUsage::endVisit(IndexAccess const& _indexAccess)
+{
+	checkAccess(_indexAccess);
 }
 
 void VariableUsage::endVisit(FunctionCall const& _funCall)
@@ -75,12 +87,34 @@ void VariableUsage::endVisit(PlaceholderStatement const&)
 		funDef->body().accept(*this);
 }
 
-set<VariableDeclaration const*> VariableUsage::touchedVariables(ASTNode const& _node, vector<CallableDeclaration const*> const& _outerCallstack)
+Expression const* VariableUsage::baseExpression(Expression const& _expr)
 {
-	m_touchedVariables.clear();
-	m_callStack.clear();
-	m_callStack += _outerCallstack;
-	m_lastCall = m_callStack.back();
-	_node.accept(*this);
-	return m_touchedVariables;
+	if (auto memberAccess = dynamic_cast<MemberAccess const*>(&_expr))
+		return &memberAccess->expression();
+	if (auto indexAccess = dynamic_cast<IndexAccess const*>(&_expr))
+		return &indexAccess->baseExpression();
+	return nullptr;
+}
+
+void VariableUsage::checkIdentifier(Identifier const& _identifier, bool _mustLValue)
+{
+	Declaration const* declaration = _identifier.annotation().referencedDeclaration;
+	solAssert(declaration, "");
+	if (VariableDeclaration const* varDecl = dynamic_cast<VariableDeclaration const*>(declaration))
+		if (_identifier.annotation().lValueRequested || !_mustLValue)
+		{
+			solAssert(m_lastCall, "");
+			if (!varDecl->isLocalVariable() || varDecl->functionOrModifierDefinition() == m_lastCall)
+				m_touchedVariables.insert(varDecl);
+		}
+}
+
+void VariableUsage::checkAccess(Expression const& _expr)
+{
+	Expression const* base = &_expr;
+	while (base && !dynamic_cast<Identifier const*>(base))
+		base = baseExpression(*base);
+	auto identifier = dynamic_cast<Identifier const*>(base);
+	if (identifier)
+		checkIdentifier(*identifier, false);
 }

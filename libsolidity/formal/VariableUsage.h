@@ -38,11 +38,23 @@ public:
 
 private:
 	void endVisit(Identifier const& _node) override;
+	void endVisit(MemberAccess const& _node) override;
+	void endVisit(IndexAccess const& _node) override;
 	void endVisit(FunctionCall const& _node) override;
 	bool visit(FunctionDefinition const& _node) override;
 	void endVisit(FunctionDefinition const& _node) override;
 	void endVisit(ModifierInvocation const& _node) override;
 	void endVisit(PlaceholderStatement const& _node) override;
+
+	/// @returns the leftmost expression in a sequence of member/index access.
+	Expression const* baseExpression(Expression const& _expr);
+	/// Checks whether an identifier should be added to touchedVariables.
+	/// @param _mustLValue the identifier being requested as lvalue is a
+	/// requirement. This is false for member/index access.
+	void checkIdentifier(Identifier const& _identifier, bool _mustLValue = true);
+	/// Checks whether a member/index access should have its identifier
+	/// added to touchedVariables.
+	void checkAccess(Expression const& _expr);
 
 	std::set<VariableDeclaration const*> m_touchedVariables;
 	std::vector<CallableDeclaration const*> m_callStack;
