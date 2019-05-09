@@ -29,9 +29,10 @@
 #include <boost/optional.hpp>
 
 using namespace std;
-using namespace dev;
 using namespace langutil;
+using namespace dev;
 using namespace dev::solidity;
+using namespace dev::solidity::smt;
 
 SMTChecker::SMTChecker(ErrorReporter& _errorReporter, map<h256, string> const& _smtlib2Responses):
 	m_interface(make_shared<smt::SMTPortfolio>(_smtlib2Responses)),
